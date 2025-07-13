@@ -1,5 +1,8 @@
 # export the Shiny app to a static site
+
 library(shinylive)
+
+
 shinylive::export(appdir = "myapp", destdir = "docs")
 # The app will be exported to the "docs" directory, which can be served as a static site
 
