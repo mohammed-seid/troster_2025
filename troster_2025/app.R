@@ -57,6 +57,8 @@ process_sheet_data <- function(df) {
       sex = sex_m_f
     ) %>%
     dplyr::mutate(
+      # Create a dummy farmer_id (random string)
+      farmer_id = paste0("F", sprintf("%06d", sample(1e6:9e6, n(), replace = FALSE))),
       total_seedling = gesho + grevillea + decurrens + wanza + papaya + moringa + coffee + guava + lemon,
       has_phone = !is.na(mobile_number) & mobile_number != "",
       age_group = dplyr::case_when(
@@ -73,7 +75,9 @@ process_sheet_data <- function(df) {
                       (coffee * coffee_price) + (guava * guava_price) + 
                       (lemon * lemon_price)
     )
-  expected_cols <- c("cluster", "woreda", "kebele", "purpose", "name_of_farmer", "sex", "age", "male_youth_16_35_yrs", "female_youth_16_35_yrs", "repeat_customer", "gesho", "gesho_price", "grevillea", "grevillea_price", "decurrens", "decurrens_price", "wanza", "wanza_price", "papaya", "papaya_price", "moringa", "moringa_price", "coffee", "coffee_price", "guava", "guava_price", "lemon", "lemon_price", "mobile_number", "female_youth_16_35_yrs_2", "total_seedling", "has_phone", "age_group", "total_revenue")
+  # Remove phone number and name before saving
+  df <- df %>% select(-mobile_number, -name_of_farmer)
+  expected_cols <- c("cluster", "woreda", "kebele", "purpose", "sex", "age", "male_youth_16_35_yrs", "female_youth_16_35_yrs", "repeat_customer", "gesho", "gesho_price", "grevillea", "grevillea_price", "decurrens", "decurrens_price", "wanza", "wanza_price", "papaya", "papaya_price", "moringa", "moringa_price", "coffee", "coffee_price", "guava", "guava_price", "lemon", "lemon_price", "female_youth_16_35_yrs_2", "total_seedling", "has_phone", "age_group", "total_revenue", "farmer_id")
   missing_cols <- setdiff(expected_cols, names(df))
   attr(df, "missing_columns") <- missing_cols
   df
