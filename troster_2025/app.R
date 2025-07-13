@@ -17,6 +17,15 @@ library(shinycssloaders) # For loading spinners
 sheet_url <- "https://docs.google.com/spreadsheets/d/1VHn2zFbGbpmB-inzJZUeNfrTwEJ--pBB5MjRmxPAVT0/edit?gid=15730184#gid=15730184"
 sheet_name <- "Farmer Detail"
 
+
+# ---- Color Palette and Tree Types ----
+primary_green   <- "#388E3C"
+secondary_green <- "#66BB6A"
+light_green     <- "#C8E6C9"
+accent_orange   <- "#FFA726"
+nature_colors   <- c("#388E3C", "#66BB6A", "#FFA726", "#42A5F5", "#8D6E63", "#C8E6C9", "#FFD54F", "#8BC34A", "#FF7043", "#26A69A")
+tree_types <- c("gesho", "grevillea", "decurrens", "wanza", "papaya", "moringa", "coffee", "guava", "lemon")
+
 # ---- Data Loading and Cleaning ----
 # Read and clean data, with type validation and error handling
 df <- tryCatch({
@@ -39,15 +48,20 @@ df <- tryCatch({
       mobile_number = mobile_number_if_any,
       sex = sex_m_f
     )
-  }, error = function(e) {
-    showNotification("Error loading data. Please check your Google Sheet and internet connection.", type = "error")
-    data.frame()
-  })
   # Ensure numeric columns are numeric
   num_cols <- c("age", "male_youth_16_35_yrs", "female_youth_16_35_yrs", "gesho", "gesho_price", "grevillea", "grevillea_price", "decurrens", "decurrens_price", "wanza", "wanza_price", "papaya", "papaya_price", "moringa", "moringa_price", "coffee", "coffee_price", "guava", "guava_price", "lemon", "lemon_price")
   for (col in num_cols) {
     if (col %in% names(clean)) clean[[col]] <- as.numeric(clean[[col]])
   }
+  # Add total_seedling column
+  clean$total_seedling <- rowSums(clean[, tree_types], na.rm = TRUE)
+  # Add has_phone column
+  clean$has_phone <- !is.na(clean$mobile_number) & clean$mobile_number != ""
+  clean
+}, error = function(e) {
+  showNotification("Error loading data. Please check your Google Sheet and internet connection.", type = "error")
+  data.frame()
+})
 ui <- fluidPage(
   theme = shinytheme("flatly"),
   tags$head(
