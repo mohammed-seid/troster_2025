@@ -1,50 +1,38 @@
-# ---- Data Loading Function ----
-load_data <- function() {
-  tryCatch({
-    df <- googlesheets4::read_sheet(sheet_url, sheet = sheet_name) %>%
-      janitor::clean_names() %>%
-      dplyr::select(cluster, woreda, kebele, purpose_for_taking_t_seedling_check_one, name_of_farmer, sex_m_f, age, male_youth_16_35_yrs, female_youth_16_35_yrs, is_this_a_repeat_customer_yes_no, total_of_gesho_seedlings, gesho_price, grevillea_price, total_of_grevillea_seedlings, total_of_decurrens_seedlings, decurrens_price, total_of_wanza_seedlings, wanza_price, total_of_papaya_seedlings, papaya_price, total_of_moringa_seedlings, moringa_price, total_of_coffee_seedlings, coffee_price, total_of_guava_seedlings, guava_price, total_of_lmon_seedlings, lemon_price, mobile_number_if_any, female_youth_16_35_yrs_2) %>%
-      dplyr::rename(
-        purpose = purpose_for_taking_t_seedling_check_one,
-        repeat_customer = is_this_a_repeat_customer_yes_no,
-        gesho = total_of_gesho_seedlings,
-        grevillea = total_of_grevillea_seedlings,
-        decurrens = total_of_decurrens_seedlings,
-        wanza = total_of_wanza_seedlings,
-        papaya = total_of_papaya_seedlings,
-        moringa = total_of_moringa_seedlings,
-        coffee = total_of_coffee_seedlings,
-        guava = total_of_guava_seedlings,
-        lemon = total_of_lmon_seedlings,
-        mobile_number = mobile_number_if_any,
-        sex = sex_m_f
-      ) %>%
-      dplyr::mutate(
-        total_seedling = gesho + grevillea + decurrens + wanza + papaya + moringa + coffee + guava + lemon,
-        has_phone = !is.na(mobile_number) & mobile_number != "",
-        age_group = dplyr::case_when(
-          age < 25 ~ "Under 25",
-          age >= 25 & age < 35 ~ "25-34",
-          age >= 35 & age < 45 ~ "35-44",
-          age >= 45 & age < 55 ~ "45-54",
-          age >= 55 ~ "55+",
-          TRUE ~ "Unknown"
-        ),
-        total_revenue = (gesho * gesho_price) + (grevillea * grevillea_price) + 
-                       (decurrens * decurrens_price) + (wanza * wanza_price) + 
-                       (papaya * papaya_price) + (moringa * moringa_price) + 
-                       (coffee * coffee_price) + (guava * guava_price) + 
-                       (lemon * lemon_price)
-      )
-    # Check for missing columns
-    expected_cols <- c("cluster", "woreda", "kebele", "purpose", "name_of_farmer", "sex", "age", "male_youth_16_35_yrs", "female_youth_16_35_yrs", "repeat_customer", "gesho", "gesho_price", "grevillea", "grevillea_price", "decurrens", "decurrens_price", "wanza", "wanza_price", "papaya", "papaya_price", "moringa", "moringa_price", "coffee", "coffee_price", "guava", "guava_price", "lemon", "lemon_price", "mobile_number", "female_youth_16_35_yrs_2", "total_seedling", "has_phone", "age_group", "total_revenue")
-    missing_cols <- setdiff(expected_cols, names(df))
-    attr(df, "missing_columns") <- missing_cols
-    df
-  }, error = function(e) {
-    structure(list(message = paste("Data load failed:", e$message)), class = "data_load_error")
-  })
-}
+# ShinyLive App for Tree Planting Survey Data
+# Enhanced version with improved data loading, error handling, and performance
+# This app visualizes key indicators from the ETH 2025 Decurrence Tree Value Survey
+
+# ---- Load Libraries ----
+library(shiny)
+library(tidyverse)
+library(googlesheets4)
+library(janitor)
+library(DT)
+library(plotly)
+library(scales)
+library(shinycssloaders)
+library(bslib)
+library(promises)
+library(future)
+
+plan(multisession)
+
+# ---- App Configuration ----
+sheet_url <- "https://docs.google.com/spreadsheets/d/1VHn2zFbGbpmB-inzJZUeNfrTwEJ--pBB5MjRmxPAVT0/edit?gid=15730184#gid=15730184"
+sheet_name <- "Farmer Detail"
+tree_types <- c("gesho", "grevillea", "decurrens", "wanza", "papaya", "moringa", "coffee", "guava", "lemon")
+
+# ---- Color Palette ----
+primary_green   <- "#2E7D32"
+secondary_green <- "#4CAF50"
+light_green     <- "#E8F5E8"
+accent_orange   <- "#FF8F00"
+accent_blue   <- "#1976D2"
+accent_purple   <- "#7B1FA2"
+warm_red        <- "#D32F2F"
+nature_colors   <- c("#2E7D32", "#4CAF50", "#FF8F00", "#1976D2", "#7B1FA2", "#D32F2F", "#795548", "#607D8B", "#FF5722", "#009688")
+nature_colors_extended <- c(nature_colors, "#FFC107", "#00BCD4", "#8BC34A", "#E91E63", "#9C27B0", "#3F51B5", "#CDDC39", "#FFEB3B", "#FF9800", "#F44336")
+
 # ---- Data Loading Functions ----
 local_data_path <- file.path("data", "farmer_data.rds")
 
@@ -118,40 +106,6 @@ refresh_data_from_gsheets <- function() {
     structure(list(message = paste("Data refresh failed:", e$message)), class = "data_load_error")
   })
 }
-# ShinyLive App for Tree Planting Survey Data
-# Enhanced version with improved data loading, error handling, and performance
-# This app visualizes key indicators from the ETH 2025 Decurrence Tree Value Survey
-
-# ---- Load Libraries ----
-library(shiny)
-library(tidyverse)
-library(googlesheets4)
-library(janitor)
-library(DT)
-library(plotly)
-library(scales)
-library(shinycssloaders)
-library(bslib)
-library(promises)
-library(future)
-
-# Google Sheet URL and sheet name (from your Quarto file)
-sheet_url <- "https://docs.google.com/spreadsheets/d/1VHn2zFbGbpmB-inzJZUeNfrTwEJ--pBB5MjRmxPAVT0/edit?gid=15730184#gid=15730184"
-sheet_name <- "Farmer Detail"
-tree_types <- c("gesho", "grevillea", "decurrens", "wanza", "papaya", "moringa", "coffee", "guava", "lemon")
-
-# ---- Color Palette ----
-primary_green   <- "#2E7D32"
-secondary_green <- "#4CAF50"
-light_green     <- "#E8F5E8"
-accent_orange   <- "#FF8F00"
-accent_blue     <- "#1976D2"
-accent_purple   <- "#7B1FA2"
-warm_red        <- "#D32F2F"
-nature_colors   <- c("#2E7D32", "#4CAF50", "#FF8F00", "#1976D2", "#7B1FA2", "#D32F2F", "#795548", "#607D8B", "#FF5722", "#009688")
-nature_colors_extended <- c(nature_colors, "#FFC107", "#00BCD4", "#8BC34A", "#E91E63", "#9C27B0", "#3F51B5", "#CDDC39", "#FFEB3B", "#FF9800", "#F44336")
-
-
 
 # ---- Helper function for empty plots ----
 plotly_empty <- function(message = "No data available for the selected filters.") {
@@ -807,9 +761,9 @@ server <- function(input, output, session) {
 output$phone_avg_seedlings_table <- DT::renderDataTable({
   validate(need(filtered_df(), "No data loaded."))
   df <- filtered_df()
-  # For each tree type, calculate avg per farmer for phone owners and non-owners
+  # For each tree type, calculate avg per farmer for phone owners and non-owners, only for those who took > 0 seedlings
   results <- lapply(tree_types, function(tree) {
-    df_tree <- df %>% filter(!is.na(.data[[tree]]))
+    df_tree <- df %>% filter(!is.na(.data[[tree]]), .data[[tree]] > 0)
     avg_non_owner <- df_tree %>% filter(!has_phone) %>% summarise(avg = mean(.data[[tree]], na.rm = TRUE)) %>% pull(avg)
     avg_owner <- df_tree %>% filter(has_phone) %>% summarise(avg = mean(.data[[tree]], na.rm = TRUE)) %>% pull(avg)
     tibble(
