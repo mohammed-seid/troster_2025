@@ -34,7 +34,8 @@ nature_colors   <- c("#2E7D32", "#4CAF50", "#FF8F00", "#1976D2", "#7B1FA2", "#D3
 nature_colors_extended <- c(nature_colors, "#FFC107", "#00BCD4", "#8BC34A", "#E91E63", "#9C27B0", "#3F51B5", "#CDDC39", "#FFEB3B", "#FF9800", "#F44336")
 
 # ---- Data Loading Functions ----
-local_data_path <- file.path("data", "farmer_data.rds")
+# Always use the data folder relative to the app.R location
+local_data_path <- file.path("..", "data", "farmer_data.rds")
 
 # Helper: process raw Google Sheet data
 process_sheet_data <- function(df) {
