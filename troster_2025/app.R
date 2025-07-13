@@ -33,6 +33,25 @@ tree_types <- c("gesho", "grevillea", "decurrens", "wanza", "papaya", "moringa",
 # Placeholder for data, will be loaded in the server
 df <- data.frame()
 
+# ---- Helper function for empty plots ----
+plotly_empty <- function(message = "No data available for the selected filters.") {
+  plotly::plot_ly() %>%
+    plotly::layout(
+      xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+      annotations = list(
+        x = 0.5,
+        y = 0.5,
+        text = message,
+        xref = "paper",
+        yref = "paper",
+        showarrow = FALSE,
+        font = list(size = 14, color = "#6C757D")
+      ),
+      paper_bgcolor = 'rgba(0,0,0,0)',
+      plot_bgcolor = 'rgba(0,0,0,0)'
+    )
+}
 # ---- Enhanced UI with Modern Design ----
 ui <- fluidPage(
   theme = bs_theme(
@@ -758,19 +777,31 @@ server <- function(input, output, session) {
   
   # ---- Value Box Outputs ----
   output$total_farmers <- renderText({
-    prettyNum(nrow(filtered_df()), big.mark = ",")
+    data <- filtered_df()
+    prettyNum(nrow(data), big.mark = ",")
   })
   
   output$total_seedlings <- renderText({
-    prettyNum(sum(filtered_df()$total_seedling, na.rm = TRUE), big.mark = ",")
+    data <- filtered_df()
+    if (nrow(data) == 0) return("0")
+    total <- sum(data$total_seedling, na.rm = TRUE)
+    prettyNum(total, big.mark = ",")
   })
   
   output$avg_seedlings <- renderText({
-    round(mean(filtered_df()$total_seedling, na.rm = TRUE), 1)
+    data <- filtered_df()
+    if (nrow(data) == 0) return("0")
+    avg <- mean(data$total_seedling, na.rm = TRUE)
+    if (is.na(avg)) return("0")
+    round(avg, 1)
   })
   
   output$phone_ownership <- renderText({
-    paste0(round(mean(filtered_df()$has_phone, na.rm = TRUE) * 100, 1), "%")
+    data <- filtered_df()
+    if (nrow(data) == 0) return("0%")
+    ownership <- mean(data$has_phone, na.rm = TRUE)
+    if (is.na(ownership)) return("0%")
+    paste0(round(ownership * 100, 1), "%")
   })
   
   # ---- Enhanced Donut Chart ----
