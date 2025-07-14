@@ -1,20 +1,26 @@
 # export the Shiny app to a static site
 
+
 library(shinylive)
 
 
-shinylive::export(appdir = "myapp", destdir = "docs")
-# The app will be exported to the "docs" directory, which can be served as a static site
 
-# options(download.file.method = "wininet")  # Windows built-in
-# OR
-# options(download.file.method = "curl")    # System curl (if installed)
-# shinylive::export(appdir = "myapp", destdir = "docs")
+shinylive::assets_info()
+shinylive::assets_download()
+# Export the Shiny app to a static site
+shinylive::export(appdir = "myapp", destdir = "docs")
 
 # Serve the static site using httpuv
+library(httpuv)
+# Set the working directory to the docs folder
 httpuv::runStaticServer("docs/")
 
-httpuv::runStaticServer("site/")
+
+# Install the dev version of shinylive (if needed)
+remotes::install_github("posit-dev/r-shinylive")
+
+# Export with verbose logging
+shinylive::export("app.R", "docs", verbose = TRUE)
 
 # To run the app, you can use the following command in your R console:
 # Open a web browser and navigate to http://localhost:8008
