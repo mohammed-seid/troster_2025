@@ -34,78 +34,29 @@ nature_colors   <- c("#2E7D32", "#4CAF50", "#FF8F00", "#1976D2", "#7B1FA2", "#D3
 nature_colors_extended <- c(nature_colors, "#FFC107", "#00BCD4", "#8BC34A", "#E91E63", "#9C27B0", "#3F51B5", "#CDDC39", "#FFEB3B", "#FF9800", "#F44336")
 
 # ---- Data Loading Functions ----
-# Always use the data folder relative to the app.R location
-local_data_path <- file.path("..", "data", "farmer_data.rds")
 
-# Helper: process raw Google Sheet data
-process_sheet_data <- function(df) {
-  df <- df %>%
-    janitor::clean_names() %>%
-    dplyr::select(cluster, woreda, kebele, purpose_for_taking_t_seedling_check_one, name_of_farmer, sex_m_f, age, male_youth_16_35_yrs, female_youth_16_35_yrs, is_this_a_repeat_customer_yes_no, total_of_gesho_seedlings, gesho_price, grevillea_price, total_of_grevillea_seedlings, total_of_decurrens_seedlings, decurrens_price, total_of_wanza_seedlings, wanza_price, total_of_papaya_seedlings, papaya_price, total_of_moringa_seedlings, moringa_price, total_of_coffee_seedlings, coffee_price, total_of_guava_seedlings, guava_price, total_of_lmon_seedlings, lemon_price, mobile_number_if_any, female_youth_16_35_yrs_2) %>%
-    dplyr::rename(
-      purpose = purpose_for_taking_t_seedling_check_one,
-      repeat_customer = is_this_a_repeat_customer_yes_no,
-      gesho = total_of_gesho_seedlings,
-      grevillea = total_of_grevillea_seedlings,
-      decurrens = total_of_decurrens_seedlings,
-      wanza = total_of_wanza_seedlings,
-      papaya = total_of_papaya_seedlings,
-      moringa = total_of_moringa_seedlings,
-      coffee = total_of_coffee_seedlings,
-      guava = total_of_guava_seedlings,
-      lemon = total_of_lmon_seedlings,
-      mobile_number = mobile_number_if_any,
-      sex = sex_m_f
-    ) %>%
-    dplyr::mutate(
-      # Create a dummy farmer_id (random string)
-      farmer_id = paste0("F", sprintf("%06d", sample(1e6:9e6, n(), replace = FALSE))),
-      total_seedling = gesho + grevillea + decurrens + wanza + papaya + moringa + coffee + guava + lemon,
-      has_phone = !is.na(mobile_number) & mobile_number != "",
-      age_group = dplyr::case_when(
-        age < 25 ~ "Under 25",
-        age >= 25 & age < 35 ~ "25-34",
-        age >= 35 & age < 45 ~ "35-44",
-        age >= 45 & age < 55 ~ "45-54",
-        age >= 55 ~ "55+",
-        TRUE ~ "Unknown"
-      ),
-      total_revenue = (gesho * gesho_price) + (grevillea * grevillea_price) + 
-                      (decurrens * decurrens_price) + (wanza * wanza_price) + 
-                      (papaya * papaya_price) + (moringa * moringa_price) + 
-                      (coffee * coffee_price) + (guava * guava_price) + 
-                      (lemon * lemon_price)
-    )
-  # Remove phone number and name before saving
-  df <- df %>% select(-mobile_number, -name_of_farmer)
-  expected_cols <- c("cluster", "woreda", "kebele", "purpose", "sex", "age", "male_youth_16_35_yrs", "female_youth_16_35_yrs", "repeat_customer", "gesho", "gesho_price", "grevillea", "grevillea_price", "decurrens", "decurrens_price", "wanza", "wanza_price", "papaya", "papaya_price", "moringa", "moringa_price", "coffee", "coffee_price", "guava", "guava_price", "lemon", "lemon_price", "female_youth_16_35_yrs_2", "total_seedling", "has_phone", "age_group", "total_revenue", "farmer_id")
-  missing_cols <- setdiff(expected_cols, names(df))
-  attr(df, "missing_columns") <- missing_cols
-  df
-}
+# Save raw data from Google Sheets in data/farmer_data.rds
+raw_data_path <- file.path("..", "data", "farmer_data.rds")
+# Save processed data in myapp/data.rds
+local_data_path <- "data.rds"
 
-# Main data loader: load from local file if exists, else fetch and save
+
+# Main data loader: load from local file
 load_data <- function() {
   tryCatch({
-    if (file.exists(local_data_path)) {
-      df <- readRDS(local_data_path)
-    } else {
-      df_raw <- googlesheets4::read_sheet(sheet_url, sheet = sheet_name)
-      df <- process_sheet_data(df_raw)
-      saveRDS(df, local_data_path)
-    }
-    df
+    readRDS(local_data_path)
   }, error = function(e) {
     structure(list(message = paste("Data load failed:", e$message)), class = "data_load_error")
   })
 }
 
-# Helper: force refresh from Google Sheets and overwrite local file
+# Helper: force refresh from Google Sheets and overwrite local and raw files
 refresh_data_from_gsheets <- function() {
   tryCatch({
     df_raw <- googlesheets4::read_sheet(sheet_url, sheet = sheet_name)
+    saveRDS(df_raw, raw_data_path) # Save raw data
     df <- process_sheet_data(df_raw)
-    saveRDS(df, local_data_path)
+    saveRDS(df, local_data_path)   # Save processed data
     df
   }, error = function(e) {
     structure(list(message = paste("Data refresh failed:", e$message)), class = "data_load_error")
@@ -401,9 +352,7 @@ server <- function(input, output, session) {
   })
   
   # Refresh button
-  observeEvent(input$refresh_data, {
-    refresh_data_reactive()
-  })
+  
   
   # Data status output
   output$data_status <- reactive({
