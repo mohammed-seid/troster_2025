@@ -270,8 +270,13 @@ ui <- fluidPage(
                      ),
                      fluidRow(
                        column(6, div(class = "chart-container",
-                                    h4(class = "chart-title", tags$i(class = "chart-icon fas fa-table", title = "Phone ownership by woreda"), "Phone Ownership by Woreda"),
-                                    withSpinner(DT::dataTableOutput("phone_stats_table"), type = 4, color = accent_blue))),
+                                    h4(class = "chart-title", tags$i(class = "chart-icon fas fa-chart-bar", title = "Phone ownership by woreda"), "Phone Ownership by Woreda"),
+                                    withSpinner(plotlyOutput("phone_woreda_plot"), type = 4, color = accent_blue))),
+                       column(6, div(class = "chart-container",
+                                    h4(class = "chart-title", tags$i(class = "chart-icon fas fa-table", title = "Phone ownership by kebele"), "Phone Ownership by Kebele"),
+                                    withSpinner(DT::dataTableOutput("phone_kebele_stats_table"), type = 4, color = accent_blue)))
+                     ),
+                     fluidRow(
                        column(6, div(class = "chart-container",
                                     h4(class = "chart-title", tags$i(class = "chart-icon fas fa-table", title = "Avg. Seedlings per Farmer by Phone Ownership"), "Avg. Seedlings per Farmer by Phone Ownership"),
                                     withSpinner(DT::dataTableOutput("phone_avg_seedlings_table"), type = 4, color = accent_blue)))
@@ -645,25 +650,58 @@ server <- function(input, output, session) {
   })
   
   # Tables
-  output$tree_stats_table <- DT::renderDataTable({
+
+output$phone_woreda_plot <- renderPlotly({
+    req(filtered_df())
+    df <- filtered_df() %>%
+      group_by(woreda) %>%
+      summarise(
+        OwnershipPct = round(100 * mean(has_phone, na.rm = TRUE), 2)
+      ) %>% 
+      filter(!is.na(woreda))
+
+    if (nrow(df) == 0) {
+      return(plotly_empty("No woreda data available."))
+    }
+
+    plot_ly(df, x = ~reorder(woreda, OwnershipPct), y = ~OwnershipPct, 
+            type = 'bar', marker = list(color = primary_green),
+            text = ~sprintf("%.1f%%", OwnershipPct), textposition = 'outside') %>%
+      layout(xaxis = list(title = "Woreda"), 
+             yaxis = list(title = '% Phone Ownership', range = c(0, 100)))
+  })
+
+output$phone_kebele_stats_table <- DT::renderDataTable({
+  validate(need(filtered_df(), "No data loaded."))
+  df <- filtered_df() %>%
+    group_by(kebele) %>%
+    summarise(
+      TotalFarmers = n(),
+      PhoneOwners = sum(has_phone, na.rm = TRUE)
+    ) %>% 
+    filter(!is.na(kebele)) %>%
+    arrange(desc(PhoneOwners))
+  datatable(df, options = list(pageLength = 10, dom = 'tp'), rownames = FALSE)
+})
+
+output$tree_stats_table <- DT::renderDataTable({
     validate(need(filtered_df(), "No data loaded."))
     df <- filtered_df() %>%
       select(all_of(tree_types)) %>%
-      pivot_longer(everything(), names_to = "Tree Type", values_to = "count") %>%
+      pivot_longer(cols = everything(), names_to = "Tree Type", values_to = "count") %>%
+      filter(count > 0) %>%
       group_by(`Tree Type`) %>%
       summarise(
-        `Total Seedlings` = sum(count, na.rm = TRUE),
-        `Farmers Buying` = sum(count > 0, na.rm = TRUE),
-        `Avg per Farmer` = round(mean(count[count > 0], na.rm = TRUE), 1),
-        `Min per Farmer` = ifelse(sum(count > 0, na.rm = TRUE) > 0, min(count[count > 0], na.rm = TRUE), NA),
-        `Max per Farmer` = ifelse(sum(count > 0, na.rm = TRUE) > 0, max(count[count > 0], na.rm = TRUE), NA),
+        `Min Seedlings` = min(count, na.rm = TRUE),
+        `Max Seedlings` = max(count, na.rm = TRUE),
+        `Avg Seedlings` = round(mean(count, na.rm = TRUE), 2),
         .groups = 'drop'
       ) %>%
       mutate(`Tree Type` = str_to_title(`Tree Type`)) %>%
-      arrange(desc(`Total Seedlings`))
+      arrange(desc(`Avg Seedlings`))
     datatable(df, options = list(pageLength = 10, dom = 'tp'), rownames = FALSE)
   })
-  
+
   # Phone ownership plots
   output$phone_tree_species <- renderPlotly({
     req(filtered_df())
@@ -711,25 +749,24 @@ server <- function(input, output, session) {
       arrange(desc(Owners))
     datatable(df, options = list(pageLength = 5, dom = 'tp'), rownames = FALSE)
   })
-  
-output$phone_avg_seedlings_table <- DT::renderDataTable({
-  validate(need(filtered_df(), "No data loaded."))
-  df <- filtered_df()
-  # For each tree type, calculate avg per farmer for phone owners and non-owners, only for those who took > 0 seedlings
-  results <- lapply(tree_types, function(tree) {
-    df_tree <- df %>% filter(!is.na(.data[[tree]]), .data[[tree]] > 0)
-    avg_non_owner <- df_tree %>% filter(!has_phone) %>% summarise(avg = mean(.data[[tree]], na.rm = TRUE)) %>% pull(avg)
-    avg_owner <- df_tree %>% filter(has_phone) %>% summarise(avg = mean(.data[[tree]], na.rm = TRUE)) %>% pull(avg)
-    tibble(
-      `Tree Species` = str_to_title(tree),
-      `Non-Owner` = round(avg_non_owner, 2),
-      `Phone Owner` = round(avg_owner, 2),
-      `Difference` = round((avg_owner - avg_non_owner), 2)
-    )
+
+  output$phone_avg_seedlings_table <- DT::renderDataTable({
+    validate(need(filtered_df(), "No data loaded."))
+    df <- filtered_df()
+    results <- lapply(tree_types, function(tree) {
+      df_tree <- df %>% filter(!is.na(.data[[tree]]), .data[[tree]] > 0)
+      avg_non_owner <- df_tree %>% filter(!has_phone) %>% summarise(avg = mean(.data[[tree]], na.rm = TRUE)) %>% pull(avg)
+      avg_owner <- df_tree %>% filter(has_phone) %>% summarise(avg = mean(.data[[tree]], na.rm = TRUE)) %>% pull(avg)
+      tibble(
+        `Tree Species` = str_to_title(tree),
+        `Non-Owner` = round(avg_non_owner, 2),
+        `Phone Owner` = round(avg_owner, 2),
+        `Difference` = round((avg_owner - avg_non_owner), 2)
+      )
+    })
+    df_out <- bind_rows(results)
+    datatable(df_out, options = list(pageLength = 10, dom = 'tp'), rownames = FALSE)
   })
-  df_out <- bind_rows(results)
-  datatable(df_out, options = list(pageLength = 10, dom = 'tp'), rownames = FALSE)
-})
 }
 
 # ---- Run Application ----

@@ -12,7 +12,10 @@ shinylive::export(appdir = "myapp", destdir = "docs")
 # shinylive::export(appdir = "myapp", destdir = "docs")
 
 # Serve the static site using httpuv
-httpuv::runStaticServer("docs")
+httpuv::runStaticServer("docs/")
+
+httpuv::runStaticServer("site/")
+
 # To run the app, you can use the following command in your R console:
 # Open a web browser and navigate to http://localhost:8008
 # To stop the server, you can use Ctrl+C in the R console
