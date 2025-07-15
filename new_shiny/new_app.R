@@ -7,7 +7,7 @@ library(shiny)
 library(tidyverse)
 library(googlesheets4)
 library(janitor)
-# library(DT) # Removed - not compatible with shinylive
+library(DT)
 library(plotly)
 library(scales)
 library(shinycssloaders)
@@ -83,17 +83,18 @@ ui <- fluidPage(
   theme = bs_theme(
     version = 5, bg = "#FFFFFF", fg = "#2C3E50", primary = "#2E7D32",
     secondary = "#4CAF50", success = "#4CAF50", info = "#1976D2",
-    warning = "#FF8F00", danger = "#D32F2F"
+    warning = "#FF8F00", danger = "#D32F2F", base_font = font_google("Inter"),
+    heading_font = font_google("Poppins"), code_font = font_google("JetBrains Mono")
   ),
   
   tags$head(
     tags$link(rel = "stylesheet", href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"),
     tags$style(HTML('\
-      body { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; }\
+      body { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); font-family: "Inter", sans-serif; line-height: 1.6; }\
       .main-header { background: linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%); color: white; padding: 25px 0; margin-bottom: 30px; border-radius: 0 0 20px 20px; box-shadow: 0 8px 32px rgba(46, 125, 50, 0.3); }\
       .header-content { display: flex; align-items: center; justify-content: center; gap: 20px; }\
       .header-icon { font-size: 3rem; color: #E8F5E8; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }\
-      .header-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 2.5rem; font-weight: 700; margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }\
+      .header-title { font-family: "Poppins", sans-serif; font-size: 2.5rem; font-weight: 700; margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }\
       .header-subtitle { font-size: 1.1rem; opacity: 0.9; margin-top: 5px; font-weight: 300; }\
       .sidebar-panel { background: white; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 0; border: none; }\
       .filter-section { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; border-radius: 15px 15px 0 0; border-bottom: 3px solid #2E7D32; }\
@@ -255,7 +256,7 @@ ui <- fluidPage(
                      fluidRow(
                        column(12, div(class = "chart-container",
                                      h4(class = "chart-title", tags$i(class = "chart-icon fas fa-table", title = "Tree statistics"), "Tree Statistics"),
-                                     withSpinner(tableOutput("tree_stats_table"), type = 4, color = accent_blue)))
+                                     withSpinner(DT::dataTableOutput("tree_stats_table"), type = 4, color = accent_blue)))
                      )
             ),
             tabPanel(title = tagList(tags$i(class = "fas fa-mobile-alt", title = "Phone Ownership"), "Phone Data"),
@@ -265,20 +266,20 @@ ui <- fluidPage(
                                     withSpinner(plotlyOutput("phone_tree_species"), type = 4, color = accent_blue))),
                        column(6, div(class = "chart-container",
                                     h4(class = "chart-title", tags$i(class = "chart-icon fas fa-table", title = "Tree species for phone owners"), "Tree Species for Phone Owners"),
-                                    withSpinner(tableOutput("phone_owners_species_table"), type = 4, color = accent_blue)))
+                                    withSpinner(DT::dataTableOutput("phone_owners_species_table"), type = 4, color = accent_blue)))
                      ),
                      fluidRow(
                        column(6, div(class = "chart-container",
                                     h4(class = "chart-title", tags$i(class = "chart-icon fas fa-chart-bar", title = "Phone ownership by woreda"), "Phone Ownership by Woreda"),
                                     withSpinner(plotlyOutput("phone_woreda_plot"), type = 4, color = accent_blue))),
                        column(6, div(class = "chart-container",
-                                    h4(class = "chart-title", tags$i(class = "chart-icon fas fa-table", title = "Phone ownership ranges by kebele"), "Phone Ownership Ranges by Kebele"),
-                                    withSpinner(tableOutput("phone_kebele_stats_table"), type = 4, color = accent_blue)))
+                                    h4(class = "chart-title", tags$i(class = "chart-icon fas fa-table", title = "Phone ownership by kebele"), "Phone Ownership by Kebele"),
+                                    withSpinner(DT::dataTableOutput("phone_kebele_stats_table"), type = 4, color = accent_blue)))
                      ),
                      fluidRow(
                        column(6, div(class = "chart-container",
                                     h4(class = "chart-title", tags$i(class = "chart-icon fas fa-table", title = "Avg. Seedlings per Farmer by Phone Ownership"), "Avg. Seedlings per Farmer by Phone Ownership"),
-                                    withSpinner(tableOutput("phone_avg_seedlings_table"), type = 4, color = accent_blue)))
+                                    withSpinner(DT::dataTableOutput("phone_avg_seedlings_table"), type = 4, color = accent_blue)))
                      )
             )
           )
@@ -670,36 +671,20 @@ output$phone_woreda_plot <- renderPlotly({
              yaxis = list(title = '% Phone Ownership', range = c(0, 100)))
   })
 
-output$phone_kebele_stats_table <- renderTable({
+output$phone_kebele_stats_table <- DT::renderDataTable({
   validate(need(filtered_df(), "No data loaded."))
-  
-  # Calculate phone owners per kebele
-  kebele_phone_counts <- filtered_df() %>%
+  df <- filtered_df() %>%
     group_by(kebele) %>%
-    summarise(PhoneOwners = sum(has_phone, na.rm = TRUE), .groups = 'drop') %>%
-    filter(!is.na(kebele))
-  
-  # Create ranges and count kebeles in each range
-  df <- kebele_phone_counts %>%
-    mutate(
-      Range = case_when(
-        PhoneOwners >= 0 & PhoneOwners <= 10 ~ "0-10",
-        PhoneOwners > 10 & PhoneOwners <= 30 ~ "11-30", 
-        PhoneOwners > 30 & PhoneOwners <= 50 ~ "31-50",
-        PhoneOwners > 50 & PhoneOwners <= 100 ~ "51-100",
-        PhoneOwners > 100 ~ ">100",
-        TRUE ~ "Unknown"
-      )
-    ) %>%
-    count(Range, name = "Number of Kebeles") %>%
-    arrange(match(Range, c("0-10", "11-30", "31-50", "51-100", ">100", "Unknown")))
-  
-  # Rename column for display
-  names(df) <- c("Phone Owners Range", "Number of Kebeles")
-  df
-}, striped = TRUE, hover = TRUE, bordered = TRUE)
+    summarise(
+      TotalFarmers = n(),
+      PhoneOwners = sum(has_phone, na.rm = TRUE)
+    ) %>% 
+    filter(!is.na(kebele)) %>%
+    arrange(desc(PhoneOwners))
+  datatable(df, options = list(pageLength = 10, dom = 'tp'), rownames = FALSE)
+})
 
-output$tree_stats_table <- renderTable({
+output$tree_stats_table <- DT::renderDataTable({
     validate(need(filtered_df(), "No data loaded."))
     df <- filtered_df() %>%
       select(all_of(tree_types)) %>%
@@ -714,8 +699,8 @@ output$tree_stats_table <- renderTable({
       ) %>%
       mutate(`Tree Type` = str_to_title(`Tree Type`)) %>%
       arrange(desc(`Avg Seedlings`))
-    df
-  }, striped = TRUE, hover = TRUE, bordered = TRUE)
+    datatable(df, options = list(pageLength = 10, dom = 'tp'), rownames = FALSE)
+  })
 
   # Phone ownership plots
   output$phone_tree_species <- renderPlotly({
@@ -742,7 +727,7 @@ output$tree_stats_table <- renderTable({
              yaxis = list(title = '% Phone Ownership', range = c(0, 100)))
   })
   
-  output$phone_owners_species_table <- renderTable({
+  output$phone_owners_species_table <- DT::renderDataTable({
     validate(need(filtered_df(), "No data loaded."))
     # Count for phone owners
     df_owners <- filtered_df() %>%
@@ -762,10 +747,10 @@ output$tree_stats_table <- renderTable({
     df <- left_join(df_owners, df_total, by = "Tree Species") %>%
       mutate(`Tree Species` = str_to_title(`Tree Species`)) %>%
       arrange(desc(Owners))
-    df
-  }, striped = TRUE, hover = TRUE, bordered = TRUE)
+    datatable(df, options = list(pageLength = 5, dom = 'tp'), rownames = FALSE)
+  })
 
-  output$phone_avg_seedlings_table <- renderTable({
+  output$phone_avg_seedlings_table <- DT::renderDataTable({
     validate(need(filtered_df(), "No data loaded."))
     df <- filtered_df()
     results <- lapply(tree_types, function(tree) {
@@ -780,8 +765,8 @@ output$tree_stats_table <- renderTable({
       )
     })
     df_out <- bind_rows(results)
-    df_out
-  }, striped = TRUE, hover = TRUE, bordered = TRUE)
+    datatable(df_out, options = list(pageLength = 10, dom = 'tp'), rownames = FALSE)
+  })
 }
 
 # ---- Run Application ----
