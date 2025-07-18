@@ -1,4 +1,4 @@
-# ShinyLive App for Tree Planting Survey Data
+# ShinyLive App for Tree Distribution
 # Enhanced version with improved data loading, error handling, and performance
 # This app visualizes key indicators from the ETH 2025 Decurrence Tree Value Survey
 
